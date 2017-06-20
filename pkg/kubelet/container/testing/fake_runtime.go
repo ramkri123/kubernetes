@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/api/v1"
 	. "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -152,6 +153,10 @@ func (f *FakeRuntime) ClearCalls() {
 
 // UpdatePodCIDR fulfills the cri interface.
 func (f *FakeRuntime) UpdatePodCIDR(c string) error {
+	return nil
+}
+
+func (f *FakeRuntime) DevicePluginManager() *deviceplugin.Manager {
 	return nil
 }
 

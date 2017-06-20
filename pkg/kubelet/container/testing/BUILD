@@ -21,6 +21,7 @@ go_library(
     deps = [
         "//pkg/api/v1:go_default_library",
         "//pkg/kubelet/container:go_default_library",
+        "//pkg/kubelet/kuberuntime/device-plugin:go_default_library",
         "//pkg/volume:go_default_library",
         "//vendor/github.com/golang/mock/gomock:go_default_library",
         "//vendor/github.com/stretchr/testify/mock:go_default_library",

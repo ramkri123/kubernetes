@@ -9,9 +9,15 @@ load(
 
 go_library(
     name = "go_default_library",
-    srcs = ["server.go"],
+    srcs = [
+        "gRPC.go",
+        "manager.go",
+        "server.go",
+        "shim.go",
+    ],
     tags = ["automanaged"],
     deps = [
+        "//pkg/api/v1:go_default_library",
         "//pkg/kubelet/apis/cri/v1alpha1/runtime:go_default_library",
         "//pkg/kubelet/apis/device-plugin/v1alpha1:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",

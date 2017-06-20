@@ -2927,9 +2927,15 @@ type NodeStatus struct {
 	// Capacity represents the total resources of a node.
 	// +optional
 	Capacity ResourceList
+	// DevCapacity represents devices on a node.
+	// +optional
+	DevCapacity []Device
 	// Allocatable represents the resources of a node that are available for scheduling.
 	// +optional
 	Allocatable ResourceList
+	// DevAvailable represents the devices available for use
+	// +optional
+	DevAvailable []Device
 	// NodePhase is the current lifecycle phase of the node.
 	// +optional
 	Phase NodePhase
@@ -3109,6 +3115,12 @@ const (
 
 // ResourceList is a set of (resource name, quantity) pairs.
 type ResourceList map[ResourceName]resource.Quantity
+
+type Device struct {
+	Kind       string
+	Name       string
+	Properties map[string]string
+}
 
 // +genclient=true
 // +nonNamespaced=true

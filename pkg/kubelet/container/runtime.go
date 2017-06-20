@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/api/v1"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -122,6 +123,8 @@ type Runtime interface {
 	// This method just proxies a new runtimeConfig with the updated
 	// CIDR value down to the runtime shim.
 	UpdatePodCIDR(podCIDR string) error
+
+	DevicePluginManager() *deviceplugin.Manager
 }
 
 // DirectStreamingRuntime is the interface implemented by runtimes for which the streaming calls

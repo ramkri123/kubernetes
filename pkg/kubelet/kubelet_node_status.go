@@ -553,6 +553,21 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 		node.Status.NodeInfo.BootID = info.BootID
 	}
 
+	mgr := kl.containerRuntime.DevicePluginManager()
+	if mgr != nil {
+		for k, v := range mgr.Devices() {
+			var key v1.ResourceName
+			if k == "nvidia-gpu" {
+				key = v1.ResourceNvidiaGPU
+			} else {
+				key = v1.ResourceName(v1.ResourceOpaqueIntPrefix + k)
+			}
+			node.Status.Capacity[key] = *resource.NewQuantity(int64(len(v)), resource.DecimalSI)
+			//node.Status.DevCapacity = append(node.Status.DevCapacity, v...)
+		}
+
+	}
+
 	rootfs, err := kl.GetCachedRootFsInfo()
 	if err != nil {
 		node.Status.Capacity[v1.ResourceStorage] = resource.MustParse("0Gi")

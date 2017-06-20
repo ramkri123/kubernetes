@@ -28,6 +28,7 @@ go_library(
         "//pkg/kubelet/container:go_default_library",
         "//pkg/kubelet/events:go_default_library",
         "//pkg/kubelet/images:go_default_library",
+        "//pkg/kubelet/kuberuntime/device-plugin:go_default_library",
         "//pkg/kubelet/leaky:go_default_library",
         "//pkg/kubelet/lifecycle:go_default_library",
         "//pkg/kubelet/network:go_default_library",

@@ -15,7 +15,6 @@ go_library(
     ],
     tags = ["automanaged"],
     deps = [
-        "//pkg/kubelet/apis/cri/v1alpha1/runtime:go_default_library",
         "//vendor/github.com/gogo/protobuf/gogoproto:go_default_library",
         "//vendor/github.com/gogo/protobuf/proto:go_default_library",
         "//vendor/github.com/gogo/protobuf/sortkeys:go_default_library",

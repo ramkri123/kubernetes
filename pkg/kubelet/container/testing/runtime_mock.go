@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/api/v1"
 	. "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -63,6 +64,10 @@ func (r *Mock) Status() (*RuntimeStatus, error) {
 func (r *Mock) GetPods(all bool) ([]*Pod, error) {
 	args := r.Called(all)
 	return args.Get(0).([]*Pod), args.Error(1)
+}
+
+func (r *Mock) DevicePluginManager() *deviceplugin.Manager {
+	return nil
 }
 
 func (r *Mock) SyncPod(pod *v1.Pod, apiStatus v1.PodStatus, status *PodStatus, secrets []v1.Secret, backOff *flowcontrol.Backoff) PodSyncResult {
