@@ -38,11 +38,14 @@ import (
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
+	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 	"k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
 	"k8s.io/kubernetes/pkg/util/selinux"
 	"k8s.io/kubernetes/pkg/util/tail"
+
+	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
 
 // startContainer starts a container and returns a message indicates why it is failed on error.
@@ -77,6 +80,24 @@ func (m *kubeGenericRuntimeManager) startContainer(podSandboxID string, podSandb
 		m.recorder.Eventf(ref, v1.EventTypeWarning, events.FailedToCreateContainer, "Failed to create container with error: %v", err)
 		return "Generate Container Config Failed", err
 	}
+
+	for key, v := range container.Resources.Requests {
+		isDevice, name := deviceplugin.IsDevice(key)
+		if !isDevice {
+			continue
+		}
+
+		var devs []*pluginapi.Device
+		devs, containerConfig = m.devicePluginManager.Allocate(name,
+			int(v.Value()), containerConfig)
+
+		if _, ok := m.pod2Ctr2Dev[pod.UID]; !ok {
+			m.pod2Ctr2Dev[pod.UID] = make(map[string][][]*pluginapi.Device)
+		}
+		ctr2Dev := m.pod2Ctr2Dev[pod.UID]
+		ctr2Dev[container.Name] = append(ctr2Dev[container.Name], devs)
+	}
+
 	containerID, err := m.runtimeService.CreateContainer(podSandboxID, containerConfig, podSandboxConfig)
 	if err != nil {
 		m.recorder.Eventf(ref, v1.EventTypeWarning, events.FailedToCreateContainer, "Failed to create container with error: %v", err)
@@ -562,6 +583,15 @@ func (m *kubeGenericRuntimeManager) killContainer(pod *v1.Pod, containerID kubec
 		glog.Errorf("Container %q termination failed with gracePeriod %d: %v", containerID.String(), gracePeriod, err)
 	} else {
 		glog.V(3).Infof("Container %q exited normally", containerID.String())
+	}
+
+	glog.Infof("pod2Ctr: %+v", m.pod2Ctr2Dev)
+	if _, ok := m.pod2Ctr2Dev[pod.ObjectMeta.UID]; ok {
+		if _, ok = m.pod2Ctr2Dev[pod.UID][containerName]; ok {
+			for _, devs := range m.pod2Ctr2Dev[pod.UID][containerName] {
+				m.devicePluginManager.Deallocate(devs)
+			}
+		}
 	}
 
 	message := fmt.Sprintf("Killing container with id %s", containerID.String())

@@ -36,9 +36,11 @@ import (
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	internalapi "k8s.io/kubernetes/pkg/kubelet/apis/cri"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/images"
+	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	"k8s.io/kubernetes/pkg/kubelet/types"
@@ -105,6 +107,9 @@ type kubeGenericRuntimeManager struct {
 
 	// The version cache of runtime daemon.
 	versionCache *cache.ObjectCache
+
+	devicePluginManager *deviceplugin.Manager
+	pod2Ctr2Dev         map[kubetypes.UID]map[string][][]*pluginapi.Device
 }
 
 type KubeGenericRuntime interface {
@@ -191,12 +196,22 @@ func NewKubeGenericRuntimeManager(
 		versionCacheTTL,
 	)
 
+	kubeRuntimeManager.devicePluginManager, err = deviceplugin.NewManager()
+	if err != nil {
+		glog.Errorf("Renaud %+v", err)
+	}
+	kubeRuntimeManager.pod2Ctr2Dev = make(map[kubetypes.UID]map[string][][]*pluginapi.Device)
+
 	return kubeRuntimeManager, nil
 }
 
 // Type returns the type of the container runtime.
 func (m *kubeGenericRuntimeManager) Type() string {
 	return m.runtimeName
+}
+
+func (m *kubeGenericRuntimeManager) DevicePluginManager() *deviceplugin.Manager {
+	return m.devicePluginManager
 }
 
 func newRuntimeVersion(version string) (*utilversion.Version, error) {

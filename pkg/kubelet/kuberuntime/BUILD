@@ -37,6 +37,7 @@ go_library(
         "//pkg/kubelet/container:go_default_library",
         "//pkg/kubelet/events:go_default_library",
         "//pkg/kubelet/images:go_default_library",
+        "//pkg/kubelet/kuberuntime/device-plugin:go_default_library",
         "//pkg/kubelet/lifecycle:go_default_library",
         "//pkg/kubelet/metrics:go_default_library",
         "//pkg/kubelet/prober/results:go_default_library",
@@ -112,6 +113,9 @@ filegroup(
 
 filegroup(
     name = "all-srcs",
-    srcs = [":package-srcs"],
+    srcs = [
+        ":package-srcs",
+        "//pkg/kubelet/kuberuntime/device-plugin:all-srcs",
+    ],
     tags = ["automanaged"],
 )
