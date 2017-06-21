@@ -35,8 +35,8 @@ func NewManager() (*Manager, error) {
 	return m, nil
 }
 
-func (m *Manager) Devices() map[string][]*pluginapi.Device {
-	return m.devices
+func (m *Manager) Devices() map[string][]v1.Device {
+	return ToAPI(m.devices)
 }
 
 func (m *Manager) Allocate(kind string, ndevices int, config *v1alpha1.ContainerConfig) ([]*pluginapi.Device, *v1alpha1.ContainerConfig) {

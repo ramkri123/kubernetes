@@ -3,7 +3,7 @@ package deviceplugin
 import (
 	"github.com/golang/glog"
 
-	//"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/api/v1"
 	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
@@ -43,12 +43,11 @@ func shimAllocate(e *Endpoint, devs []*pluginapi.Device, c *v1alpha1.ContainerCo
 	return c
 }
 
-/*
-func ToAPIDevices(pluginDevices []*pluginapi.Device) []*v1.Device {
-	var devs []*v1.Device
+func ToAPIDevices(pluginDevices []*pluginapi.Device) []v1.Device {
+	var devs []v1.Device
 
 	for _, dev := range pluginDevices {
-		devs = append(devs, &v1.Device{
+		devs = append(devs, v1.Device{
 			Kind:       dev.Kind,
 			Name:       dev.Name,
 			Properties: dev.Properties,
@@ -58,8 +57,8 @@ func ToAPIDevices(pluginDevices []*pluginapi.Device) []*v1.Device {
 	return devs
 }
 
-func ToAPI(pluginDevices map[string][]*pluginapi.Device) map[string][]*v1.Device {
-	devs := make(map[string][]*v1.Device)
+func ToAPI(pluginDevices map[string][]*pluginapi.Device) map[string][]v1.Device {
+	devs := make(map[string][]v1.Device)
 
 	for k, v := range pluginDevices {
 		devs[k] = ToAPIDevices(v)
@@ -67,4 +66,3 @@ func ToAPI(pluginDevices map[string][]*pluginapi.Device) map[string][]*v1.Device
 
 	return devs
 }
-*/

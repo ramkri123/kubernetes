@@ -10,6 +10,7 @@ openapi_library(
     openapi_targets = [
         "cmd/libs/go2idl/client-gen/test_apis/testgroup/v1",
         "federation/apis/federation/v1beta1",
+        "pkg/api",
         "pkg/api/v1",
         "pkg/apis/abac/v0",
         "pkg/apis/abac/v1beta1",

@@ -563,7 +563,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 				key = v1.ResourceName(v1.ResourceOpaqueIntPrefix + k)
 			}
 			node.Status.Capacity[key] = *resource.NewQuantity(int64(len(v)), resource.DecimalSI)
-			//node.Status.DevCapacity = append(node.Status.DevCapacity, v...)
+			node.Status.DevCapacity = append(node.Status.DevCapacity, v...)
 		}
 
 	}
