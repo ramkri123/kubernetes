@@ -34,13 +34,17 @@ import (
 	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"k8s.io/apimachinery/pkg/api/resource"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/api/v1"
+	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/cadvisor"
 	cmutil "k8s.io/kubernetes/pkg/kubelet/cm/util"
+	"k8s.io/kubernetes/pkg/kubelet/device-plugin"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -117,6 +121,10 @@ type containerManagerImpl struct {
 	recorder record.EventRecorder
 	// Interface for QoS cgroup management
 	qosContainerManager QOSContainerManager
+
+	devicePluginManager *deviceplugin.Manager
+
+	Pod2Ctr2Dev map[kubetypes.UID]map[string][][]*pluginapi.Device
 }
 
 type features struct {
@@ -253,6 +261,11 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		return nil, err
 	}
 
+	devicePluginManager, err := deviceplugin.NewManager()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to initialize device plugin with error: %+v", err)
+	}
+
 	return &containerManagerImpl{
 		cadvisorInterface:   cadvisorInterface,
 		mountUtil:           mountUtil,
@@ -263,6 +276,8 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		cgroupRoot:          cgroupRoot,
 		recorder:            recorder,
 		qosContainerManager: qosContainerManager,
+		devicePluginManager: devicePluginManager,
+		Pod2Ctr2Dev:         make(map[kubetypes.UID]map[string][][]*pluginapi.Device),
 	}, nil
 }
 
@@ -792,4 +807,42 @@ func getDockerAPIVersion(cadvisor cadvisor.Interface) *utilversion.Version {
 
 func (m *containerManagerImpl) GetCapacity() v1.ResourceList {
 	return m.capacity
+}
+
+func (c *containerManagerImpl) ApplyDevicePlugins(p *v1.Pod, ctr *v1.Container, config *v1alpha1.ContainerConfig) error {
+	m := c.devicePluginManager
+
+	for key, v := range ctr.Resources.Requests {
+		isDevice, name := deviceplugin.IsDevice(key)
+		if !isDevice {
+			continue
+		}
+
+		devs, err := m.Allocate(name, int(v.Value()), config)
+		if err != nil {
+			c.DeallocateDevicePlugins(p, ctr.Name)
+			return err
+		}
+
+		if _, ok := c.Pod2Ctr2Dev[p.UID]; !ok {
+			c.Pod2Ctr2Dev[p.UID] = make(map[string][][]*pluginapi.Device)
+		}
+
+		ctr2Dev := c.Pod2Ctr2Dev[p.UID]
+		ctr2Dev[ctr.Name] = append(ctr2Dev[ctr.Name], devs)
+	}
+
+	return nil
+}
+
+func (c *containerManagerImpl) DevicePluginManager() *deviceplugin.Manager {
+	return c.devicePluginManager
+}
+
+func (c *containerManagerImpl) DeallocateDevicePlugins(p *v1.Pod, ctr string) {
+	m := c.devicePluginManager
+
+	for _, devs := range c.Pod2Ctr2Dev[p.UID][ctr] {
+		m.Deallocate(devs)
+	}
 }

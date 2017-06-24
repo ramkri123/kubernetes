@@ -19,6 +19,8 @@ package cm
 import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api/v1"
+	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	"k8s.io/kubernetes/pkg/kubelet/device-plugin"
 )
 
 type containerManagerStub struct{}
@@ -64,4 +66,15 @@ func (cm *containerManagerStub) NewPodContainerManager() PodContainerManager {
 
 func NewStubContainerManager() ContainerManager {
 	return &containerManagerStub{}
+}
+
+func (cm *containerManagerStub) ApplyDevicePlugins(p *v1.Pod, ctr *v1.Container, config *v1alpha1.ContainerConfig) error {
+	return nil
+}
+
+func (cm *containerManagerStub) DevicePluginManager() *deviceplugin.Manager {
+	return nil
+}
+
+func (c *containerManagerStub) DeallocateDevicePlugins(p *v1.Pod, ctr string) {
 }

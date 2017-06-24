@@ -28,6 +28,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/kubernetes/pkg/api/v1"
 	v1qos "k8s.io/kubernetes/pkg/api/v1/helper/qos"
+	"k8s.io/kubernetes/pkg/kubelet/device-plugin"
 )
 
 const (
@@ -268,4 +269,8 @@ func (m *podContainerManagerNoop) ReduceCPULimits(_ CgroupName) error {
 
 func (m *podContainerManagerNoop) GetAllPodsFromCgroups() (map[types.UID]CgroupName, error) {
 	return nil, nil
+}
+
+func (pMgr *podContainerManagerNoop) ApplyDevicePlugins(m *deviceplugin.Manager, p *v1.Pod) error {
+	return nil
 }

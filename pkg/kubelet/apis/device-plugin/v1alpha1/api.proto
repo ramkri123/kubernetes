@@ -55,41 +55,22 @@ message AllocateResponse {
 	repeated KeyValue envs = 1;
 	// Mounts for the container.
 	repeated Mount mounts = 2;
-	// Devices for the container.
-	repeated ContainerDevice devices = 3;
+}
+
+message Mount {
+	string name = 1;
+	string host_path = 2;
+	string mount_path = 3;
+	bool read_only = 4;
 }
 
 message DeallocateRequest {
 	repeated Device devices = 1;
 }
 
-// Mount specifies a host volume to mount into a container.
-message Mount {
-    // Path of the mount within the container.
-    string container_path = 1;
-    // Path of the mount on the host.
-    string host_path = 2;
-    // If set, the mount is read-only.
-    bool readonly = 3;
-    // If set, the mount needs SELinux relabeling.
-    bool selinux_relabel = 4;
-}
-
 message KeyValue {
     string key = 1;
     string value = 2;
-}
-
-message ContainerDevice {
-    // Path of the device within the container.
-    string container_path = 1;
-    // Path of the device on the host.
-    string host_path = 2;
-    // Cgroups permissions of the device, candidates are one or more of
-    // * r - allows container to read from the specified device.
-    // * w - allows container to write to the specified device.
-    // * m - allows container to create device files that do not yet exist.
-    string permissions = 3;
 }
 
 message Error {

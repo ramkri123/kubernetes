@@ -54,7 +54,6 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/images"
-	"k8s.io/kubernetes/pkg/kubelet/kuberuntime/device-plugin"
 	"k8s.io/kubernetes/pkg/kubelet/leaky"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -348,10 +347,6 @@ func (r *Runtime) RunCommand(config *Config, args ...string) ([]string, error) {
 		return nil, fmt.Errorf("failed to run %v: %v\nstdout: %v\nstderr: %v", args, err, stdout.String(), stderr.String())
 	}
 	return strings.Split(strings.TrimSpace(stdout.String()), "\n"), nil
-}
-
-func (r *Runtime) DevicePluginManager() *deviceplugin.Manager {
-	return nil
 }
 
 // makePodServiceFileName constructs the unit file name for a pod using its rkt pod uuid.

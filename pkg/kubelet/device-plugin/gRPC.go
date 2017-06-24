@@ -48,6 +48,7 @@ func (s *Server) InitiateCommunication(r *pluginapi.RegisterRequest) {
 		return
 	}
 
+	glog.Infof("Renaud, Querying devices has list: %+v", devs)
 	for _, dev := range devs {
 		glog.Infof("Recv dev %+v", dev)
 
@@ -98,7 +99,7 @@ func listDevs(client pluginapi.DeviceManagerClient) ([]*pluginapi.Device, error)
 }
 
 func start(client pluginapi.DeviceManagerClient) error {
-	_, err := client.Start(context.Background(), &pluginapi.Empty{})
+	_, err := client.Init(context.Background(), &pluginapi.Empty{})
 	if err != nil {
 		return fmt.Errorf("fail to start communication with device plugin: %v", err)
 	}
@@ -117,5 +118,6 @@ func dial(unixSocket string) (*grpc.ClientConn, pluginapi.DeviceManagerClient, e
 		return nil, nil, fmt.Errorf("fail to dial device plugin: %v", err)
 	}
 
+	glog.Infof("Renaud, Dialed device plugin: %+v", unixSocket)
 	return c, pluginapi.NewDeviceManagerClient(c), nil
 }
