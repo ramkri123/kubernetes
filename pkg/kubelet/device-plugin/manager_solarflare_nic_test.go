@@ -58,7 +58,7 @@ func (d *DevicePluginServer1) Discover(e *pluginapi.Empty, deviceStream pluginap
 
         // read the whole file at once
     	//b, err := ioutil.ReadFile("/proc/devices")
-    	b, err := ioutil.ReadFile("/root/x")
+    	b, err := ioutil.ReadFile("/proc/devices")
     	if err != nil {
         	panic(err)
     	}
