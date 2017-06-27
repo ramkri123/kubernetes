@@ -101,7 +101,7 @@ message DeviceHealth {
 	string Name = 1;
 	string Kind = 2;
 	string Vendor = 4;
-	string Status = 3;
+	string Health = 3;
 }
 
 message Empty {

@@ -17,6 +17,7 @@ limitations under the License.
 package deviceplugin
 
 import (
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -32,8 +33,16 @@ import (
 )
 
 const (
-	DeviceSock = "device.sock"
-	ServerSock = pluginapi.DevicePluginPath + DeviceSock
+	DeviceVendor = "foo"
+	DeviceKind   = "device"
+	DeviceSock   = "device.sock"
+	ServerSock   = pluginapi.DevicePluginPath + DeviceSock
+
+	WaitToKill = 3
+)
+
+var (
+	deviceErrorChan = make(chan *pluginapi.Device)
 )
 
 type DevicePluginServer struct {
@@ -51,7 +60,8 @@ func (d *DevicePluginServer) Discover(e *pluginapi.Empty, deviceStream pluginapi
 	for i := 0; i < 5; i++ {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       strconv.Itoa(i),
-			Kind:       "device",
+			Kind:       DeviceKind,
+			Vendor:     DeviceVendor,
 			Properties: nil,
 		})
 	}
@@ -60,7 +70,25 @@ func (d *DevicePluginServer) Discover(e *pluginapi.Empty, deviceStream pluginapi
 }
 
 func (d *DevicePluginServer) Monitor(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_MonitorServer) error {
-	return nil
+	for {
+		select {
+		case d := <-deviceErrorChan:
+			time.Sleep(WaitToKill * time.Second)
+
+			err := deviceStream.Send(&pluginapi.DeviceHealth{
+				Name:   d.Name,
+				Kind:   d.Kind,
+				Vendor: DeviceVendor,
+				Health: pluginapi.Unhealthy,
+			})
+
+			if err != nil {
+				log.Println("error while monitoring: %+v", err)
+			}
+		}
+
+		time.Sleep(time.Second)
+	}
 }
 
 func (d *DevicePluginServer) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
@@ -77,6 +105,8 @@ func (d *DevicePluginServer) Allocate(ctx context.Context, r *pluginapi.Allocate
 		MountPath: "/device-plugin",
 		ReadOnly:  false,
 	})
+
+	deviceErrorChan <- r.Devices[0]
 
 	return &response, nil
 }
@@ -106,12 +136,13 @@ func DialRegistery(t *testing.T) {
 	require.NoError(t, err)
 
 	client := pluginapi.NewPluginRegistrationClient(c)
-	_, err = client.Register(context.Background(), &pluginapi.RegisterRequest{
+	resp, err := client.Register(context.Background(), &pluginapi.RegisterRequest{
 		Version:    pluginapi.Version,
 		Unixsocket: DeviceSock,
-		Kind:       "device",
+		Vendor:     DeviceVendor,
 	})
 
+	require.Len(t, resp.Error, 0)
 	require.NoError(t, err)
 	c.Close()
 }
@@ -131,12 +162,21 @@ func TestManager(t *testing.T) {
 	devs, resp, err := mgr.Allocate("device", 1)
 
 	require.NoError(t, err)
-	assert.Len(t, resp.Envs, 1)
-	assert.Len(t, resp.Mounts, 1)
+	assert.Len(t, resp[0].Envs, 1)
+	assert.Len(t, resp[0].Mounts, 1)
 	assert.Len(t, devs, 1)
 
 	assert.Len(t, mgr.Available()["device"], 4)
 
 	mgr.Deallocate(devs)
 	assert.Len(t, mgr.Available()["device"], 5)
+
+	time.Sleep((WaitToKill + 1) * time.Second)
+	unhealthyDev := devs[0]
+
+	devs = mgr.Devices()[DeviceKind]
+	i, ok := hasDevice(unhealthyDev, devs)
+
+	assert.True(t, ok)
+	assert.Equal(t, pluginapi.Unhealthy, devs[i].Health)
 }
