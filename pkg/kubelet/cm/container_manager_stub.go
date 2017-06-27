@@ -62,6 +62,10 @@ func (cm *containerManagerStub) NewPodContainerManager() PodContainerManager {
 	return &podContainerManagerStub{}
 }
 
+func (m *containerManagerStub) GetDevicePluginHandler() *DevicePluginHandler {
+	return nil
+}
+
 func NewStubContainerManager() ContainerManager {
 	return &containerManagerStub{}
 }

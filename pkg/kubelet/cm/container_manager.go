@@ -29,6 +29,7 @@ import (
 )
 
 type ActivePodsFunc func() []*v1.Pod
+type KillPodFunc func(*v1.Pod, v1.PodStatus, int64)
 
 // Manages the containers running on a machine.
 type ContainerManager interface {
@@ -63,6 +64,8 @@ type ContainerManager interface {
 	// UpdateQOSCgroups performs housekeeping updates to ensure that the top
 	// level QoS containers have their desired state in a thread-safe way
 	UpdateQOSCgroups() error
+
+	GetDevicePluginHandler() *DevicePluginHandler
 }
 
 type NodeConfig struct {

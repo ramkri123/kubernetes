@@ -632,6 +632,7 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 			kubeCfg.CPUCFSQuota,
 			runtimeService,
 			imageService,
+			klet.containerManager,
 		)
 		if err != nil {
 			return nil, err
@@ -772,6 +773,13 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 
 	// setup eviction manager
 	evictionManager, evictionAdmitHandler := eviction.NewManager(klet.resourceAnalyzer, evictionConfig, killPodNow(klet.podWorkers, kubeDeps.Recorder), klet.imageManager, klet.containerGC, kubeDeps.Recorder, nodeRef, klet.clock)
+
+	k := killPodNow(klet.podWorkers, kubeDeps.Recorder)
+	klet.containerManager.GetDevicePluginHandler().StartHealthCheck(
+		func(p *v1.Pod, status v1.PodStatus, grace int64) {
+			k(p, status, &grace)
+		},
+	)
 
 	klet.evictionManager = evictionManager
 	klet.admitHandlers.AddPodAdmitHandler(evictionAdmitHandler)

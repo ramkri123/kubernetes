@@ -117,6 +117,8 @@ type containerManagerImpl struct {
 	recorder record.EventRecorder
 	// Interface for QoS cgroup management
 	qosContainerManager QOSContainerManager
+
+	devicePluginHdler *DevicePluginHandler
 }
 
 type features struct {
@@ -253,7 +255,12 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		return nil, err
 	}
 
-	return &containerManagerImpl{
+	hdlr, err := NewDevicePluginHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	mgr := &containerManagerImpl{
 		cadvisorInterface:   cadvisorInterface,
 		mountUtil:           mountUtil,
 		NodeConfig:          nodeConfig,
@@ -263,7 +270,10 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		cgroupRoot:          cgroupRoot,
 		recorder:            recorder,
 		qosContainerManager: qosContainerManager,
-	}, nil
+		devicePluginHdler:   hdlr,
+	}
+
+	return mgr, nil
 }
 
 // NewPodContainerManager is a factory method returns a PodContainerManager object
@@ -792,4 +802,8 @@ func getDockerAPIVersion(cadvisor cadvisor.Interface) *utilversion.Version {
 
 func (m *containerManagerImpl) GetCapacity() v1.ResourceList {
 	return m.capacity
+}
+
+func (m *containerManagerImpl) GetDevicePluginHandler() *DevicePluginHandler {
+	return m.devicePluginHdler
 }
