@@ -35,7 +35,7 @@ message RegisterRequest {
 	string unixsocket = 2;
 	// Name of the devices the device plugin wants to register
 	// A device plugin can only register one kind of devices
-	string kind = 3;
+	string vendor = 3;
 }
 
 message RegisterResponse {
@@ -92,12 +92,16 @@ message Error {
 message Device {
 	string Kind = 1;
 	string Name = 2;
-	map<string, string> properties = 4; // Could be [1, 1.2, 1G]
+	string Health = 3;
+	string Vendor = 4;
+	map<string, string> properties = 5; // Could be [1, 1.2, 1G]
 }
 
 message DeviceHealth {
 	string Name = 1;
-	string Status = 2;
+	string Kind = 2;
+	string Vendor = 4;
+	string Status = 3;
 }
 
 message Empty {

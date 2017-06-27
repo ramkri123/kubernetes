@@ -18,30 +18,38 @@ package deviceplugin
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api/v1"
 
-	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
+
+type MonitorCallback func(*pluginapi.Device)
 
 type Manager struct {
 	registry *Server
 
+	// Key is Kind
 	devices   map[string][]*pluginapi.Device
 	available map[string][]*pluginapi.Device
 
+	// Key is vendor
+	vendors map[string][]*pluginapi.Device
+
 	mutex sync.Mutex
+
+	callback MonitorCallback
 }
 
-func NewManager() (*Manager, error) {
+func NewManager(f MonitorCallback) (*Manager, error) {
 	m := &Manager{
-		registry:  newServer(),
 		devices:   make(map[string][]*pluginapi.Device),
 		available: make(map[string][]*pluginapi.Device),
+		vendors:   make(map[string][]*pluginapi.Device),
+
+		registry: newServer(),
+		callback: f,
 	}
 
 	m.registry.Manager = m
@@ -52,21 +60,20 @@ func NewManager() (*Manager, error) {
 	return m, nil
 }
 
-func (m *Manager) Devices() map[string][]v1.Device {
-	return ToAPI(m.devices)
+func (m *Manager) Devices() map[string][]*pluginapi.Device {
+	return m.devices
 }
 
-func (m *Manager) Available() map[string][]v1.Device {
-	return ToAPI(m.available)
+func (m *Manager) Available() map[string][]*pluginapi.Device {
+	return m.available
 }
 
-func (m *Manager) Allocate(kind string, ndevices int, config *v1alpha1.ContainerConfig) ([]*pluginapi.Device, error) {
-
+func (m *Manager) Allocate(kind string, ndevices int) ([]*pluginapi.Device, []*pluginapi.AllocateResponse, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if len(m.available[kind]) < ndevices {
-		return nil, fmt.Errorf("Not enough devices of type %s available", kind)
+	if len(m.available[kind]) < ndevices || ndevices < 0 {
+		return nil, nil, fmt.Errorf("Not enough devices of type %s available", kind)
 	}
 
 	glog.Infof("Recieved request for %d devices of kind %s", ndevices, kind)
@@ -74,10 +81,28 @@ func (m *Manager) Allocate(kind string, ndevices int, config *v1alpha1.Container
 	devs := m.available[kind][:ndevices]
 	m.available[kind] = m.available[kind][ndevices:]
 
-	endpoint := m.registry.Endpoints[kind]
-	shimAllocate(endpoint, devs, config)
+	if len(devs) == 0 {
+		return nil, nil, nil
+	}
 
-	return devs, nil
+	var responses []*pluginapi.AllocateResponse
+	group := make(map[string][]*pluginapi.Device)
+
+	for _, d := range devs {
+		group[d.Vendor] = append(group[d.Vendor], d)
+	}
+
+	for vendor, devs := range group {
+		response, err := allocate(m.registry.Endpoints[vendor], devs)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		responses = append(responses, response)
+	}
+
+	return devs, responses, nil
 }
 
 func (m *Manager) Deallocate(devs []*pluginapi.Device) {
@@ -85,26 +110,35 @@ func (m *Manager) Deallocate(devs []*pluginapi.Device) {
 	defer m.mutex.Unlock()
 
 	if len(devs) == 0 {
+		glog.Infof("Recieved request to deallocate 0 devices, returning")
 		return
 	}
 
-	kind := devs[0].Kind
-	assertSameKind(devs, kind)
+	group := make(map[string][]*pluginapi.Device)
 
-	// only add back devices which aren't already in
-	// available
-loop:
-	for _, dev := range devs {
-		for _, d := range m.available[kind] {
-			if dev.Name == d.Name {
-				continue loop
-			}
+	// only add back devices which aren't already in available
+	for _, d := range devs {
+		i, ok := hasDevice(d, m.devices[d.Kind])
+		if !ok {
+			continue
 		}
-		m.available[kind] = append(m.available[kind], dev)
+
+		group[d.Vendor] = append(group[d.Vendor], d)
+
+		if m.devices[d.Kind][i].Health == pluginapi.Unhealthy {
+			continue
+		}
+
+		if _, ok := hasDevice(d, m.available[d.Kind]); ok {
+			continue
+		}
+
+		m.available[d.Kind] = append(m.available[d.Kind], d)
 	}
 
-	endpoint := m.registry.Endpoints[kind]
-	deallocate(endpoint, devs)
+	for vendor, devs := range group {
+		deallocate(m.registry.Endpoints[vendor], devs)
+	}
 }
 
 func (m *Manager) addDevice(d *pluginapi.Device) {
@@ -113,27 +147,21 @@ func (m *Manager) addDevice(d *pluginapi.Device) {
 
 	m.devices[d.Kind] = append(m.devices[d.Kind], d)
 	m.available[d.Kind] = append(m.available[d.Kind], d)
+
+	m.vendors[d.Vendor] = append(m.vendors[d.Vendor], d)
 }
 
-func (m *Manager) deleteDevices(kind string) {
+func (m *Manager) deleteDevices(vendor string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	delete(m.devices, kind)
-	delete(m.available, kind)
-}
-
-func IsDevice(k v1.ResourceName) (bool, string) {
-	key := string(k)
-	if k != v1.ResourceNvidiaGPU && !strings.HasPrefix(key, v1.ResourceOpaqueIntPrefix) {
-		return false, ""
-	}
-	var name string
-	if k == v1.ResourceNvidiaGPU {
-		name = "nvidia-gpu"
-	} else {
-		name = strings.TrimPrefix(key, v1.ResourceOpaqueIntPrefix)
+	devs, ok := m.vendors[vendor]
+	if !ok {
+		return
 	}
 
-	return true, name
+	for _, d := range devs {
+		m.available[d.Kind] = deleteDev(d, m.available[d.Kind])
+		m.devices[d.Kind] = deleteDev(d, m.devices[d.Kind])
+	}
 }

@@ -78,7 +78,8 @@ func (m *kubeGenericRuntimeManager) startContainer(podSandboxID string, podSandb
 		return "Generate Container Config Failed", err
 	}
 
-	m.containerManager.ApplyDevicePlugins(pod, container, containerConfig)
+	hdlr := m.containerManager.GetDevicePluginHandler()
+	hdlr.ApplyDevicePlugins(pod, container, containerConfig)
 
 	containerID, err := m.runtimeService.CreateContainer(podSandboxID, containerConfig, podSandboxConfig)
 	if err != nil {
@@ -567,7 +568,8 @@ func (m *kubeGenericRuntimeManager) killContainer(pod *v1.Pod, containerID kubec
 		glog.V(3).Infof("Container %q exited normally", containerID.String())
 	}
 
-	m.containerManager.DeallocateDevicePlugins(pod, containerName)
+	hdlr := m.containerManager.GetDevicePluginHandler()
+	hdlr.DeallocateDevicePlugins(pod, containerName)
 
 	message := fmt.Sprintf("Killing container with id %s", containerID.String())
 	if reason != "" {

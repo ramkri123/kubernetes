@@ -25,52 +25,119 @@ func deallocate(e *Endpoint, devs []*pluginapi.Device) {
 	})
 }
 
-func (s *Server) InitiateCommunication(r *pluginapi.RegisterRequest) {
+func (s *Server) InitiateCommunication(r *pluginapi.RegisterRequest, response *pluginapi.RegisterResponse) {
 	connection, client, err := dial(r.Unixsocket)
 	if err != nil {
-		glog.Errorf("%+v", err)
+		response.Error = err.Error()
 		return
 	}
 
-	if err := start(client); err != nil {
-		glog.Errorf("%+v", err)
+	if err := initProtocol(client); err != nil {
+		response.Error = err.Error()
 		return
 	}
 
 	devs, err := listDevs(client)
+	glog.Infof("Recieved devs %+v", devs)
 	if err != nil {
-		glog.Errorf("%+v", err)
+		response.Error = err.Error()
 		return
 	}
 
-	if err := assertSameKind(devs, r.Kind); err != nil {
-		glog.Errorf("%+v", err)
+	glog.Infof("validating devs %+v", devs)
+	if err := IsDevsValid(devs, r.Vendor); err != nil {
+		glog.Infof("error validating devs %s", err.Error())
+		response.Error = err.Error()
 		return
 	}
 
-	glog.Infof("Renaud, Querying devices has list: %+v", devs)
-	for _, dev := range devs {
-		glog.Infof("Recv dev %+v", dev)
-
-		s.Manager.addDevice(dev)
-		s.Endpoints[r.Kind] = &Endpoint{
-			c:          connection,
-			client:     client,
-			socketname: r.Unixsocket,
-		}
+	glog.Infof("creating endpoint %+v", devs)
+	s.Endpoints[r.Vendor] = &Endpoint{
+		c:          connection,
+		client:     client,
+		socketname: r.Unixsocket,
 	}
 
-	// TODO call monitor
+	for _, d := range devs {
+		glog.Infof("Recieved device %+v", d)
+		s.Manager.addDevice(d)
+	}
+
+	go s.Monitor(client, r.Vendor)
 }
 
-func assertSameKind(devs []*pluginapi.Device, kind string) error {
-	for _, dev := range devs {
-		if dev.Kind != kind {
-			return fmt.Errorf("All devices must have the kind %s", kind)
-		}
+func (s *Server) Monitor(client pluginapi.DeviceManagerClient, vendor string) {
+Start:
+	stream, err := client.Monitor(context.Background(), &pluginapi.Empty{})
+	if err != nil {
+		glog.Infof("Could not call monitor for device plugin with "+
+			"Kind '%s' and with error %+v", err)
+		return
 	}
 
-	return nil
+	for {
+		health, err := stream.Recv()
+		if err == io.EOF {
+			glog.Infof("End of Stream when monitoring vendor %s "+
+				", restarting monitor", vendor)
+			goto Start
+		}
+
+		if err != nil {
+			glog.Infof("Monitor stoped unexpectedly for device plugin with "+
+				"Kind '%s' and with error %+v", err)
+			return
+		}
+
+		s.handleDeviceUnhealthy(&pluginapi.Device{
+			Name:   health.Name,
+			Kind:   health.Kind,
+			Vendor: health.Vendor,
+		}, vendor)
+	}
+}
+
+func (s *Server) handleDeviceUnhealthy(d *pluginapi.Device, vendor string) {
+	s.Manager.mutex.Lock()
+	defer s.Manager.mutex.Unlock()
+
+	glog.Infof("Unhealthy device %+v for device plugin for vendor '%s'", d, vendor)
+
+	if err := IsDevValid(d, vendor); err != nil {
+		glog.Infof("device is not valid %+v", err)
+		return
+	}
+
+	devs, ok := s.Manager.devices[d.Kind]
+	if !ok {
+		glog.Infof("Manager does not have device plugin for device %+v", d)
+		return
+	}
+
+	available, ok := s.Manager.available[d.Kind]
+	if !ok {
+		glog.Infof("Manager does not have device plugin for device %+v", d)
+		return
+	}
+
+	i, ok := hasDevice(d, devs)
+	if !ok {
+		glog.Infof("Could not find device %+v for device plugin for "+
+			"vendor %s", d, vendor)
+		return
+	}
+
+	devs[i].Health = pluginapi.Unhealthy
+
+	j, ok := hasDevice(d, available)
+	if ok {
+		glog.Infof("Device %+v found in available pool, removing", d)
+		s.Manager.available[vendor] = deleteDevAt(j, available)
+		return
+	}
+
+	glog.Infof("Device %+v not found in available pool (might be used) using callback", d)
+	s.Manager.callback(devs[i])
 }
 
 func listDevs(client pluginapi.DeviceManagerClient) ([]*pluginapi.Device, error) {
@@ -82,7 +149,7 @@ func listDevs(client pluginapi.DeviceManagerClient) ([]*pluginapi.Device, error)
 	}
 
 	for {
-		dev, err := stream.Recv()
+		d, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
@@ -92,13 +159,13 @@ func listDevs(client pluginapi.DeviceManagerClient) ([]*pluginapi.Device, error)
 				"plugin client with err %+v", err)
 		}
 
-		devs = append(devs, dev)
+		devs = append(devs, d)
 	}
 
 	return devs, nil
 }
 
-func start(client pluginapi.DeviceManagerClient) error {
+func initProtocol(client pluginapi.DeviceManagerClient) error {
 	_, err := client.Init(context.Background(), &pluginapi.Empty{})
 	if err != nil {
 		return fmt.Errorf("fail to start communication with device plugin: %v", err)

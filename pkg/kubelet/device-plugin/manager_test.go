@@ -28,7 +28,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
 
@@ -117,8 +116,11 @@ func DialRegistery(t *testing.T) {
 	c.Close()
 }
 
+func monitorCallback(d *pluginapi.Device) {
+}
+
 func TestManager(t *testing.T) {
-	mgr, err := NewManager()
+	mgr, err := NewManager(monitorCallback)
 	require.NoError(t, err)
 
 	StartDevicePluginServer(t)
@@ -126,12 +128,11 @@ func TestManager(t *testing.T) {
 
 	assert.Len(t, mgr.Devices()["device"], 5)
 
-	cfg := &v1alpha1.ContainerConfig{}
-	devs, err := mgr.Allocate("device", 1, cfg)
+	devs, resp, err := mgr.Allocate("device", 1)
 
 	require.NoError(t, err)
-	assert.Len(t, cfg.Envs, 1)
-	assert.Len(t, cfg.Mounts, 1)
+	assert.Len(t, resp.Envs, 1)
+	assert.Len(t, resp.Mounts, 1)
 	assert.Len(t, devs, 1)
 
 	assert.Len(t, mgr.Available()["device"], 4)

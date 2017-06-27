@@ -3,6 +3,7 @@ package deviceplugin
 import (
 	"net"
 	"os"
+	"strings"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -33,7 +34,7 @@ func (m *Manager) startRegistery() error {
 
 	s, err := net.Listen("unix", pluginapi.KubeletSocket)
 	if err != nil {
-		glog.Errorf("Failed to listen to socket while starting"+
+		glog.Errorf("Failed to listen to socket while starting "+
 			"device pluginregistery", err)
 		return err
 	}
@@ -58,17 +59,23 @@ func (s *Server) Register(ctx context.Context, r *pluginapi.RegisterRequest) (*p
 		return response, nil
 	}
 
-	if e, ok := s.Endpoints[r.Kind]; ok {
+	r.Vendor = strings.TrimSpace(r.Vendor)
+	if err := IsVendorValid(r.Vendor); err != nil {
+		response.Error = err.Error()
+		return response, nil
+	}
+
+	if e, ok := s.Endpoints[r.Vendor]; ok {
 		if e.socketname != r.Unixsocket {
-			response.Error = "A device plugin is already in charge of" +
-				"this Kind on socket " + e.socketname
+			response.Error = "A device plugin is already in charge of " +
+				"this vendor on socket " + e.socketname
 			return response, nil
 		}
 
-		s.Manager.deleteDevices(r.Kind)
+		s.Manager.deleteDevices(r.Vendor)
 	}
 
-	s.InitiateCommunication(r)
+	s.InitiateCommunication(r, response)
 
 	return response, nil
 }
