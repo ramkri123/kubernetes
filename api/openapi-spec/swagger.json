@@ -47555,6 +47555,27 @@
      }
     }
    },
+   "io.k8s.kubernetes.pkg.api.v1.Device": {
+    "required": [
+     "kind",
+     "name",
+     "properties"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "properties": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "string"
+      }
+     }
+    }
+   },
    "io.k8s.kubernetes.pkg.api.v1.DownwardAPIProjection": {
     "description": "Represents downward API info for projecting into a projected volume. Note that this is identical to a downwardAPI volume source without the default mode.",
     "properties": {
@@ -48798,6 +48819,20 @@
      "daemonEndpoints": {
       "description": "Endpoints of daemons running on the Node.",
       "$ref": "#/definitions/io.k8s.kubernetes.pkg.api.v1.NodeDaemonEndpoints"
+     },
+     "devAvailable": {
+      "description": "DevAvailable represents the devices available for use",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/io.k8s.kubernetes.pkg.api.v1.Device"
+      }
+     },
+     "devCapacity": {
+      "description": "DevCapacity represents devices on a node.",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/io.k8s.kubernetes.pkg.api.v1.Device"
+      }
      },
      "images": {
       "description": "List of container images on this node",
