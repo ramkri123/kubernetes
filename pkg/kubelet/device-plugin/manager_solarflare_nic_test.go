@@ -20,8 +20,8 @@ import (
 	"net"
 	"os"
 	//"strconv"
-	"strings"
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +31,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	v1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
 
@@ -40,82 +39,98 @@ const (
 	ServerSock1 = pluginapi.DevicePluginPath + DeviceSock1
 )
 
+var discovered = 0
+
 type DevicePluginServer1 struct {
 }
 
 func (d *DevicePluginServer1) Init(ctx context.Context, e *pluginapi.Empty) (*pluginapi.Empty, error) {
-	glog.Errorf("ramki: Init\n");
+	glog.Errorf("ramki: Init\n")
 	return nil, nil
 }
 
 func (d *DevicePluginServer1) Stop(ctx context.Context, e *pluginapi.Empty) (*pluginapi.Empty, error) {
-	glog.Errorf("ramki: Stop\n");
+	glog.Errorf("ramki: Stop\n")
 	return nil, nil
 }
 
 func (d *DevicePluginServer1) Discover(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_DiscoverServer) error {
-	glog.Errorf("ramki: Discover\n");
+	glog.Errorf("ramki: Discover\n")
 
-        // read the whole file at once
-    	//b, err := ioutil.ReadFile("/proc/devices")
-    	b, err := ioutil.ReadFile("/proc/devices")
-    	if err != nil {
-        	panic(err)
-    	}
-    	s := string(b)
+	// read the whole file at once
+	//b, err := ioutil.ReadFile("/proc/devices")
+	b, err := ioutil.ReadFile("/proc/devices")
+	if err != nil {
+		panic(err)
+	}
+	s := string(b)
 
-    	if (strings.Index(s, "sfc_char") > 0) {
+	if strings.Index(s, "sfc_char") > 0 {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       "/dev/sfc_char",
 			Kind:       "device",
+			Vendor:     "device",
 			Properties: nil,
 		})
-    	}
 
-	if (strings.Index(s, "sfc_affinity") > 0) {
+		discovered++
+	}
+
+	if strings.Index(s, "sfc_affinity") > 0 {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       "/dev/sfc_affnity",
 			Kind:       "device",
+			Vendor:     "device",
 			Properties: nil,
 		})
+
+		discovered++
 	}
 
-	if (strings.Index(s, "onload_epoll") > 0) {
+	if strings.Index(s, "onload_epoll") > 0 {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       "/dev/onload_epoll",
 			Kind:       "device",
+			Vendor:     "device",
 			Properties: nil,
 		})
+
+		discovered++
 	}
 
-	if (strings.Index(s, "onload_cplane") > 0) {
+	if strings.Index(s, "onload_cplane") > 0 {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       "/dev/onload_cplane",
 			Kind:       "device",
+			Vendor:     "device",
 			Properties: nil,
 		})
+
+		discovered++
 	}
 
 	// '\n' is added to avoid a match with onload_cplane and onload_epoll
-	if (strings.Index(s, "onload\n") > 0) {
+	if strings.Index(s, "onload\n") > 0 {
 		deviceStream.Send(&pluginapi.Device{
 			Name:       "/dev/onload",
 			Kind:       "device",
+			Vendor:     "device",
 			Properties: nil,
 		})
+
+		discovered++
 	}
 
 	return nil
 }
 
 func (d *DevicePluginServer1) Monitor(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_MonitorServer) error {
-	glog.Errorf("ramki: Monitor\n");
 	return nil
 }
 
 func (d *DevicePluginServer1) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 
-	glog.Errorf("ramki: Allocate\n");
+	glog.Errorf("ramki: Allocate\n")
 	var response pluginapi.AllocateResponse
 	response.Envs = append(response.Envs, &pluginapi.KeyValue{
 		Key:   "TEST_ENV_VAR",
@@ -133,12 +148,12 @@ func (d *DevicePluginServer1) Allocate(ctx context.Context, r *pluginapi.Allocat
 }
 
 func (d *DevicePluginServer1) Deallocate(ctx context.Context, r *pluginapi.DeallocateRequest) (*pluginapi.Error, error) {
-	glog.Errorf("ramki: Deallocate\n");
+	glog.Errorf("ramki: Deallocate\n")
 	return &pluginapi.Error{}, nil
 }
 
 func StartDevicePluginServer1(t *testing.T) {
-	glog.Errorf("ramki: StartDevicePluginServer:%s",ServerSock1);
+	glog.Errorf("ramki: StartDevicePluginServer:%s", ServerSock1)
 	os.Remove(ServerSock1)
 	sock, err := net.Listen("unix", ServerSock1)
 	require.NoError(t, err)
@@ -150,7 +165,7 @@ func StartDevicePluginServer1(t *testing.T) {
 }
 
 func DialRegistery1(t *testing.T) {
-	glog.Errorf("ramki: DialRegistery\n");
+	glog.Errorf("ramki: DialRegistery\n")
 	c, err := grpc.Dial(pluginapi.KubeletSocket, grpc.WithInsecure(),
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 			return net.DialTimeout("unix", addr, timeout)
@@ -160,20 +175,22 @@ func DialRegistery1(t *testing.T) {
 	require.NoError(t, err)
 
 	client := pluginapi.NewPluginRegistrationClient(c)
-	_, err = client.Register(context.Background(), &pluginapi.RegisterRequest{
+	resp, err := client.Register(context.Background(), &pluginapi.RegisterRequest{
 		Version:    pluginapi.Version,
 		Unixsocket: DeviceSock1,
-		Kind:       "device",
+		Vendor:     "device",
 	})
 
+	glog.Errorf("resp: %+v", resp)
+	require.Len(t, resp.Error, 0)
 	require.NoError(t, err)
 	c.Close()
 }
 
 func TestManager1(t *testing.T) {
 
-	glog.Errorf("ramki: TestManager\n");
-	mgr, err := NewManager()
+	glog.Errorf("ramki: TestManager\n")
+	mgr, err := NewManager(monitorCallback)
 	require.NoError(t, err)
 
 	StartDevicePluginServer1(t)
@@ -181,12 +198,15 @@ func TestManager1(t *testing.T) {
 
 	//assert.Len(t, mgr.Devices()["device"], 2)
 
-	cfg := &v1alpha1.ContainerConfig{}
-	devs, err := mgr.Allocate("device", 1, cfg)
+	if discovered == 0 {
+		return
+	}
+
+	devs, resp, err := mgr.Allocate("device", 1)
 
 	require.NoError(t, err)
-	assert.Len(t, cfg.Envs, 1)
-	assert.Len(t, cfg.Mounts, 1)
+	assert.Len(t, resp[0].Envs, 1)
+	assert.Len(t, resp[0].Mounts, 1)
 	assert.Len(t, devs, 1)
 
 	//assert.Len(t, mgr.Available()["device"], 1)
