@@ -631,6 +631,7 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 			kubeCfg.CPUCFSQuota,
 			runtimeService,
 			imageService,
+			klet.containerManager,
 		)
 		if err != nil {
 			return nil, err
@@ -771,6 +772,29 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 
 	// setup eviction manager
 	evictionManager, evictionAdmitHandler := eviction.NewManager(klet.resourceAnalyzer, evictionConfig, killPodNow(klet.podWorkers, kubeDeps.Recorder), klet.imageManager, klet.containerGC, kubeDeps.Recorder, nodeRef, klet.clock)
+
+	// Get node status
+	c := klet.GetKubeClient()
+	node, err := c.Core().Nodes().Get(string(klet.nodeName), metav1.GetOptions{})
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		return nil, err
+	}
+	devCapacity := node.Status.DevCapacity
+	devAvailable := node.Status.DevAvailable
+
+	k := killPodNow(klet.podWorkers, kubeDeps.Recorder)
+	devicePluginHandler, err := cm.NewDevicePluginHandler(devCapacity,
+		devAvailable, klet.podManager.GetPods(),
+		func(p *v1.Pod, status v1.PodStatus, grace int64) {
+			k(p, status, &grace)
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	klet.containerManager.SetDevicePluginHandler(devicePluginHandler)
 
 	klet.evictionManager = evictionManager
 	klet.admitHandlers.AddPodAdmitHandler(evictionAdmitHandler)
