@@ -40,6 +40,7 @@ const (
 )
 
 var discovered = 0
+var server *grpc.Server
 
 type DevicePluginServer1 struct {
 }
@@ -125,6 +126,8 @@ func (d *DevicePluginServer1) Discover(e *pluginapi.Empty, deviceStream pluginap
 }
 
 func (d *DevicePluginServer1) Monitor(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_MonitorServer) error {
+	for {
+	}
 	return nil
 }
 
@@ -158,10 +161,10 @@ func StartDevicePluginServer1(t *testing.T) {
 	sock, err := net.Listen("unix", ServerSock1)
 	require.NoError(t, err)
 
-	grpcServer := grpc.NewServer([]grpc.ServerOption{}...)
-	pluginapi.RegisterDeviceManagerServer(grpcServer, &DevicePluginServer1{})
+	server = grpc.NewServer([]grpc.ServerOption{}...)
+	pluginapi.RegisterDeviceManagerServer(server, &DevicePluginServer1{})
 
-	go grpcServer.Serve(sock)
+	go server.Serve(sock)
 }
 
 func DialRegistery1(t *testing.T) {
@@ -182,7 +185,7 @@ func DialRegistery1(t *testing.T) {
 	})
 
 	glog.Errorf("resp: %+v", resp)
-	require.Len(t, resp.Error, 0)
+	require.True(t, resp.Error == nil)
 	require.NoError(t, err)
 	c.Close()
 }
@@ -190,7 +193,7 @@ func DialRegistery1(t *testing.T) {
 func TestManager1(t *testing.T) {
 
 	glog.Errorf("ramki: TestManager\n")
-	mgr, err := NewManager(monitorCallback)
+	mgr, err := NewManager(nil, nil, monitorCallback)
 	require.NoError(t, err)
 
 	StartDevicePluginServer1(t)
@@ -199,6 +202,7 @@ func TestManager1(t *testing.T) {
 	//assert.Len(t, mgr.Devices()["device"], 2)
 
 	if discovered == 0 {
+		server.Stop()
 		return
 	}
 
@@ -212,5 +216,6 @@ func TestManager1(t *testing.T) {
 	//assert.Len(t, mgr.Available()["device"], 1)
 
 	mgr.Deallocate(devs)
+	server.Stop()
 	//assert.Len(t, mgr.Available()["device"], 2)
 }

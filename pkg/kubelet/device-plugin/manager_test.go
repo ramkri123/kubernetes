@@ -17,166 +17,110 @@ limitations under the License.
 package deviceplugin
 
 import (
-	"log"
-	"net"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
 
 const (
-	DeviceVendor = "foo"
-	DeviceKind   = "device"
-	DeviceSock   = "device.sock"
-	ServerSock   = pluginapi.DevicePluginPath + DeviceSock
-
-	WaitToKill = 3
+	deviceKind = "device"
+	waitToKill = 1
 )
 
 var (
-	deviceErrorChan = make(chan *pluginapi.Device)
+	nDevices = 3
 )
 
-type DevicePluginServer struct {
-}
+// TestManagerDiscovery tests that device plugin's Discovery method
+// is called when registering
+func TestManagerDiscovery(t *testing.T) {
+	mgr, plugin, err := setup()
+	require.NoError(t, err)
+	defer teardown(mgr, plugin)
 
-func (d *DevicePluginServer) Init(ctx context.Context, e *pluginapi.Empty) (*pluginapi.Empty, error) {
-	return nil, nil
-}
+	devs, ok := mgr.Devices()[deviceKind]
+	assert.True(t, ok)
 
-func (d *DevicePluginServer) Stop(ctx context.Context, e *pluginapi.Empty) (*pluginapi.Empty, error) {
-	return nil, nil
-}
-
-func (d *DevicePluginServer) Discover(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_DiscoverServer) error {
-	for i := 0; i < 5; i++ {
-		deviceStream.Send(&pluginapi.Device{
-			Name:       strconv.Itoa(i),
-			Kind:       DeviceKind,
-			Vendor:     DeviceVendor,
-			Properties: nil,
-		})
-	}
-
-	return nil
-}
-
-func (d *DevicePluginServer) Monitor(e *pluginapi.Empty, deviceStream pluginapi.DeviceManager_MonitorServer) error {
-	for {
-		select {
-		case d := <-deviceErrorChan:
-			time.Sleep(WaitToKill * time.Second)
-
-			err := deviceStream.Send(&pluginapi.DeviceHealth{
-				Name:   d.Name,
-				Kind:   d.Kind,
-				Vendor: DeviceVendor,
-				Health: pluginapi.Unhealthy,
-			})
-
-			if err != nil {
-				log.Println("error while monitoring: %+v", err)
-			}
-		}
-
-		time.Sleep(time.Second)
+	assert.Len(t, devs, nDevices)
+	for _, d := range devs {
+		_, ok = HasDevice(d, plugin.devs)
+		assert.True(t, ok)
 	}
 }
 
-func (d *DevicePluginServer) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
+// TestManagerAllocation tests that device plugin's Allocation and Deallocation method
+// allocates correctly the devices
+// This also tests the RM of the manager
+func TestManagerAllocation(t *testing.T) {
+	mgr, plugin, err := setup()
+	require.NoError(t, err)
+	defer teardown(mgr, plugin)
 
-	var response pluginapi.AllocateResponse
-	response.Envs = append(response.Envs, &pluginapi.KeyValue{
-		Key:   "TEST_ENV_VAR",
-		Value: "FOO",
-	})
+	for i := 1; i < nDevices; i++ {
+		devs, resp, err := mgr.Allocate("device", i)
+		require.NoError(t, err)
 
-	response.Mounts = append(response.Mounts, &pluginapi.Mount{
-		Name:      "mount-abc",
-		HostPath:  "/tmp",
-		MountPath: "/device-plugin",
-		ReadOnly:  false,
-	})
+		assert.Len(t, devs, i)
+		assert.Len(t, resp[0].Envs, 1)
+		assert.Len(t, resp[0].Mounts, 1)
 
-	deviceErrorChan <- r.Devices[0]
+		assert.Len(t, mgr.Available()["device"], nDevices-i)
 
-	return &response, nil
+		// Deallocation test
+		mgr.Deallocate(devs)
+		time.Sleep(time.Millisecond * 500)
+		assert.Len(t, mgr.Available()["device"], nDevices)
+	}
 }
 
-func (d *DevicePluginServer) Deallocate(ctx context.Context, r *pluginapi.DeallocateRequest) (*pluginapi.Error, error) {
-	return &pluginapi.Error{}, nil
-}
+// TestManagerAllocation tests that device plugin's Allocation and Deallocation method
+func TestManagerMonitoring(t *testing.T) {
+	mgr, plugin, err := setup()
+	require.NoError(t, err)
+	defer teardown(mgr, plugin)
 
-func StartDevicePluginServer(t *testing.T) {
-	os.Remove(ServerSock)
-	sock, err := net.Listen("unix", ServerSock)
+	devs, _, err := mgr.Allocate("device", 1)
 	require.NoError(t, err)
 
-	grpcServer := grpc.NewServer([]grpc.ServerOption{}...)
-	pluginapi.RegisterDeviceManagerServer(grpcServer, &DevicePluginServer{})
-
-	go grpcServer.Serve(sock)
-}
-
-func DialRegistery(t *testing.T) {
-	c, err := grpc.Dial(pluginapi.KubeletSocket, grpc.WithInsecure(),
-		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", addr, timeout)
-		}),
-	)
-
-	require.NoError(t, err)
-
-	client := pluginapi.NewPluginRegistrationClient(c)
-	resp, err := client.Register(context.Background(), &pluginapi.RegisterRequest{
-		Version:    pluginapi.Version,
-		Unixsocket: DeviceSock,
-		Vendor:     DeviceVendor,
-	})
-
-	require.Len(t, resp.Error, 0)
-	require.NoError(t, err)
-	c.Close()
-}
-
-func monitorCallback(d *pluginapi.Device) {
-}
-
-func TestManager(t *testing.T) {
-	mgr, err := NewManager(monitorCallback)
-	require.NoError(t, err)
-
-	StartDevicePluginServer(t)
-	DialRegistery(t)
-
-	assert.Len(t, mgr.Devices()["device"], 5)
-
-	devs, resp, err := mgr.Allocate("device", 1)
-
-	require.NoError(t, err)
-	assert.Len(t, resp[0].Envs, 1)
-	assert.Len(t, resp[0].Mounts, 1)
-	assert.Len(t, devs, 1)
-
-	assert.Len(t, mgr.Available()["device"], 4)
-
-	mgr.Deallocate(devs)
-	assert.Len(t, mgr.Available()["device"], 5)
-
-	time.Sleep((WaitToKill + 1) * time.Second)
+	// Monitoring test
+	time.Sleep(waitToKill*time.Second + 500*time.Millisecond)
 	unhealthyDev := devs[0]
 
-	devs = mgr.Devices()[DeviceKind]
-	i, ok := hasDevice(unhealthyDev, devs)
+	devs = mgr.Devices()[deviceKind]
+	i, ok := HasDevice(unhealthyDev, devs)
 
 	assert.True(t, ok)
 	assert.Equal(t, pluginapi.Unhealthy, devs[i].Health)
+}
+
+func setup() (*Manager, *MockDevicePlugin, error) {
+	mgr, err := NewManager(nil, nil, monitorCallback)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	plugin, err := StartMockDevicePluginServer("fooVendor", deviceKind, nDevices,
+		time.Millisecond*500)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = DialRegistery(plugin)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return mgr, plugin, nil
+}
+
+func teardown(mgr *Manager, plugin *MockDevicePlugin) {
+	plugin.Stop()
+	mgr.Stop()
+}
+
+func monitorCallback(d *pluginapi.Device) {
 }
