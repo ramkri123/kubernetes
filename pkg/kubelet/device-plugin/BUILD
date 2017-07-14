@@ -24,6 +24,7 @@ go_library(
         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/golang.org/x/net/context:go_default_library",
         "//vendor/google.golang.org/grpc:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
     ],
 )
 
@@ -43,7 +44,6 @@ filegroup(
 go_test(
     name = "go_default_test",
     srcs = [
-        "manager_solarflare_nic_test.go",
         "manager_test.go",
     ],
     library = ":go_default_library",
