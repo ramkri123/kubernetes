@@ -112,13 +112,16 @@ func (m *kubeGenericRuntimeManager) startContainer(podSandboxID string, podSandb
 		return grpc.ErrorDesc(err), ErrCreateContainerConfig
 	}
 
-	hdlr := m.containerManager.GetDevicePluginHandler()
-	if hdlr != nil {
-		err := hdlr.AllocateDevices(pod, container, containerConfig)
+	if m.containerManager != nil {
+		hdlr := m.containerManager.GetDevicePluginHandler()
+		if hdlr != nil {
+			err := hdlr.AllocateDevices(pod, container, containerConfig)
 
-		if err != nil {
-			m.recordContainerEvent(pod, container, "", v1.EventTypeWarning, events.FailedToCreateContainer, "Error: %v", err)
-			return err.Error(), ErrCreateContainerConfig
+			if err != nil {
+				m.recordContainerEvent(pod, container, "", v1.EventTypeWarning,
+					events.FailedToCreateContainer, "Error: %v", err)
+				return err.Error(), ErrCreateContainerConfig
+			}
 		}
 	}
 
@@ -612,9 +615,11 @@ func (m *kubeGenericRuntimeManager) killContainer(pod *v1.Pod, containerID kubec
 		glog.V(3).Infof("Container %q exited normally", containerID.String())
 	}
 
-	hdlr := m.containerManager.GetDevicePluginHandler()
-	if hdlr != nil {
-		hdlr.DeallocateDevices(pod, containerName)
+	if m.containerManager != nil {
+		hdlr := m.containerManager.GetDevicePluginHandler()
+		if hdlr != nil {
+			hdlr.DeallocateDevices(pod, containerName)
+		}
 	}
 
 	message := fmt.Sprintf("Killing container with id %s", containerID.String())

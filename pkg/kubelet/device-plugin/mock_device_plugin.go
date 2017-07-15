@@ -123,7 +123,7 @@ func StartMockDevicePluginServer(kubeletSocket, vendor, kind string, ndevs int,
 	dir, _ := filepath.Split(kubeletSocket)
 	socketPath := dir + deviceSock
 
-	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 

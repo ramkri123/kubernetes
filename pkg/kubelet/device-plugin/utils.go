@@ -33,6 +33,15 @@ func NewError(err string) *pluginapi.Error {
 	}
 }
 
+func copyDevices(devs []*pluginapi.Device) []*pluginapi.Device {
+	var clones []*pluginapi.Device
+	for _, d := range devs {
+		clones = append(clones, d)
+	}
+
+	return clones
+}
+
 func HasDevice(d *pluginapi.Device, devs []*pluginapi.Device) (int, bool) {
 	name := DeviceKey(d)
 

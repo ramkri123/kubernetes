@@ -79,11 +79,27 @@ func NewManager(socketPath string, devices, available []*pluginapi.Device,
 }
 
 func (m *Manager) Devices() map[string][]*pluginapi.Device {
-	return m.devices
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	devs := make(map[string][]*pluginapi.Device)
+	for k, v := range m.devices {
+		devs[k] = copyDevices(v)
+	}
+
+	return devs
 }
 
 func (m *Manager) Available() map[string][]*pluginapi.Device {
-	return m.available
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	devs := make(map[string][]*pluginapi.Device)
+	for k, v := range m.available {
+		devs[k] = copyDevices(v)
+	}
+
+	return devs
 }
 
 func (m *Manager) Allocate(kind string, ndevices int) ([]*pluginapi.Device,
@@ -126,15 +142,13 @@ func (m *Manager) Allocate(kind string, ndevices int) ([]*pluginapi.Device,
 }
 
 func (m *Manager) Deallocate(devs []*pluginapi.Device) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	if len(devs) == 0 {
 		return nil
 	}
 
 	group := make(map[string][]*pluginapi.Device)
 
+	m.mutex.Lock()
 	for _, d := range devs {
 		// If we don't know the device
 		i, ok := HasDevice(d, m.devices[d.Kind])
@@ -156,9 +170,13 @@ func (m *Manager) Deallocate(devs []*pluginapi.Device) error {
 
 		m.available[d.Kind] = append(m.available[d.Kind], d)
 	}
+	m.mutex.Unlock()
 
 	for vendor, devs := range group {
+		m.mutex.Lock()
 		e, ok := m.registry.Endpoints[vendor]
+		m.mutex.Unlock()
+
 		if !ok {
 			return fmt.Errorf("Endpoint for vendor %s does not exist", vendor)
 		}

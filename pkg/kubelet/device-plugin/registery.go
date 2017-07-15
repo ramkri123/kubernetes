@@ -45,7 +45,7 @@ func newRegistery(socketPath string) (*Registery, error) {
 func (m *Manager) startRegistery() error {
 	socketPath := filepath.Join(m.registry.socketdir, m.registry.socketname)
 
-	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		glog.Errorf("Failed to listen to socket while starting "+
 			"device plugin registery", err)
 		return err
