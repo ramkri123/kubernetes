@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,8 +32,9 @@ import (
 )
 
 const (
-	deviceKind = "device"
-	waitToKill = 1
+	deviceKind    = "device"
+	waitToKill    = 1
+	kubeletSocket = "/tmp/kubelet.sock"
 )
 
 var (
@@ -47,12 +47,12 @@ func TestHandlerDevices(t *testing.T) {
 	defer teardown(hdlr, plugin)
 
 	devs, ok := hdlr.Devices()[deviceKind]
-	assert.True(t, ok)
-	assert.Len(t, devs, nDevs)
+	require.True(t, ok)
+	require.Len(t, devs, nDevs)
 
 	devs, ok = hdlr.AvailableDevices()[deviceKind]
-	assert.True(t, ok)
-	assert.Len(t, devs, nDevs)
+	require.True(t, ok)
+	require.Len(t, devs, nDevs)
 }
 
 func TestHandlerRM(t *testing.T) {
@@ -83,16 +83,16 @@ func TestHandlerRM(t *testing.T) {
 	cfg := v1alpha1.ContainerConfig{}
 	err = hdlr.AllocateDevices(pod, &pod.Spec.Containers[0], &cfg)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Len(t, cfg.Envs, 1)
-	assert.Len(t, cfg.Mounts, 1)
+	require.Len(t, cfg.Envs, 1)
+	require.Len(t, cfg.Mounts, 1)
 
 	hdlr.DeallocateDevices(pod, pod.Spec.Containers[0].Name)
 	// Wait for Deallocate to happen
 	time.Sleep(time.Millisecond * 250)
 
-	assert.Len(t, hdlr.AvailableDevices()[deviceKind], nDevs)
+	require.Len(t, hdlr.AvailableDevices()[deviceKind], nDevs)
 }
 
 // Simulate the state Kubelet would be after a crash
@@ -131,15 +131,15 @@ func TestHandlerRebuildState(t *testing.T) {
 	}}
 
 	hdlr, err := NewDevicePluginHandler(devices, available, pods,
-		func(*v1.Pod, v1.PodStatus, int64) {})
-	assert.NoError(t, err)
+		func(*v1.Pod, v1.PodStatus, int64) {}, kubeletSocket)
+	require.NoError(t, err)
 
-	plugin, err := deviceplugin.StartMockDevicePluginServer(vndr, deviceKind, len(devices)-1,
-		time.Millisecond*500)
-	assert.NoError(t, err)
+	plugin, err := deviceplugin.StartMockDevicePluginServer(kubeletSocket, vndr,
+		deviceKind, len(devices)-1, time.Millisecond*500)
+	require.NoError(t, err)
 
-	err = deviceplugin.DialRegistery(plugin)
-	assert.NoError(t, err)
+	err = plugin.DialRegistery()
+	require.NoError(t, err)
 
 	plugin.Stop()
 	hdlr.Stop()
@@ -147,18 +147,19 @@ func TestHandlerRebuildState(t *testing.T) {
 }
 
 func setup() (*DevicePluginHandler, *deviceplugin.MockDevicePlugin, error) {
-	hdlr, err := NewDevicePluginHandler(nil, nil, nil, func(*v1.Pod, v1.PodStatus, int64) {})
+	hdlr, err := NewDevicePluginHandler(nil, nil, nil,
+		func(*v1.Pod, v1.PodStatus, int64) {}, kubeletSocket)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	plugin, err := deviceplugin.StartMockDevicePluginServer("fooVendor", deviceKind, nDevs,
-		time.Millisecond*500)
+	plugin, err := deviceplugin.StartMockDevicePluginServer(kubeletSocket, "fooVendor",
+		deviceKind, nDevs, time.Millisecond*500)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = deviceplugin.DialRegistery(plugin)
+	err = plugin.DialRegistery()
 	if err != nil {
 		return nil, nil, err
 	}

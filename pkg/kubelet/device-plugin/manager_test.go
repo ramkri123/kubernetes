@@ -20,15 +20,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pluginapi "k8s.io/kubernetes/pkg/kubelet/apis/device-plugin/v1alpha1"
 )
 
 const (
-	deviceKind = "device"
-	waitToKill = 1
+	deviceKind    = "device"
+	waitToKill    = 1
+	kubeletSocket = "/tmp/kubelet.sock"
 )
 
 var (
@@ -43,12 +43,12 @@ func TestManagerDiscovery(t *testing.T) {
 	defer teardown(mgr, plugin)
 
 	devs, ok := mgr.Devices()[deviceKind]
-	assert.True(t, ok)
+	require.True(t, ok)
 
-	assert.Len(t, devs, nDevices)
+	require.Len(t, devs, nDevices)
 	for _, d := range devs {
 		_, ok = HasDevice(d, plugin.devs)
-		assert.True(t, ok)
+		require.True(t, ok)
 	}
 }
 
@@ -64,16 +64,16 @@ func TestManagerAllocation(t *testing.T) {
 		devs, resp, err := mgr.Allocate("device", i)
 		require.NoError(t, err)
 
-		assert.Len(t, devs, i)
-		assert.Len(t, resp[0].Envs, 1)
-		assert.Len(t, resp[0].Mounts, 1)
+		require.Len(t, devs, i)
+		require.Len(t, resp[0].Envs, 1)
+		require.Len(t, resp[0].Mounts, 1)
 
-		assert.Len(t, mgr.Available()["device"], nDevices-i)
+		require.Len(t, mgr.Available()["device"], nDevices-i)
 
 		// Deallocation test
 		mgr.Deallocate(devs)
 		time.Sleep(time.Millisecond * 500)
-		assert.Len(t, mgr.Available()["device"], nDevices)
+		require.Len(t, mgr.Available()["device"], nDevices)
 	}
 }
 
@@ -93,23 +93,23 @@ func TestManagerMonitoring(t *testing.T) {
 	devs = mgr.Devices()[deviceKind]
 	i, ok := HasDevice(unhealthyDev, devs)
 
-	assert.True(t, ok)
-	assert.Equal(t, pluginapi.Unhealthy, devs[i].Health)
+	require.True(t, ok)
+	require.Equal(t, pluginapi.Unhealthy, devs[i].Health)
 }
 
 func setup() (*Manager, *MockDevicePlugin, error) {
-	mgr, err := NewManager(nil, nil, monitorCallback)
+	mgr, err := NewManager(kubeletSocket, nil, nil, monitorCallback)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	plugin, err := StartMockDevicePluginServer("fooVendor", deviceKind, nDevices,
-		time.Millisecond*500)
+	plugin, err := StartMockDevicePluginServer(kubeletSocket, "fooVendor", deviceKind,
+		nDevices, time.Millisecond*500)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = DialRegistery(plugin)
+	err = plugin.DialRegistery()
 	if err != nil {
 		return nil, nil, err
 	}

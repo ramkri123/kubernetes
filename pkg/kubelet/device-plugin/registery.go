@@ -1,8 +1,10 @@
 package deviceplugin
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/golang/glog"
@@ -19,24 +21,40 @@ type Endpoint struct {
 }
 
 type Registery struct {
+	socketname string
+	socketdir  string
+
 	Endpoints map[string]*Endpoint // Key is Kind
 	Manager   *Manager
 	server    *grpc.Server
 }
 
-func newServer() *Registery {
-	return &Registery{
-		Endpoints: make(map[string]*Endpoint),
+func newRegistery(socketPath string) (*Registery, error) {
+	if socketPath == "" || !filepath.IsAbs(socketPath) {
+		return nil, fmt.Errorf("Bad socketPath, must be an absolute path")
 	}
+
+	dir, file := filepath.Split(socketPath)
+	return &Registery{
+		Endpoints:  make(map[string]*Endpoint),
+		socketname: file,
+		socketdir:  dir,
+	}, nil
 }
 
 func (m *Manager) startRegistery() error {
-	os.Remove(pluginapi.KubeletSocket)
+	socketPath := filepath.Join(m.registry.socketdir, m.registry.socketname)
 
-	s, err := net.Listen("unix", pluginapi.KubeletSocket)
+	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+		glog.Errorf("Failed to listen to socket while starting "+
+			"device plugin registery", err)
+		return err
+	}
+
+	s, err := net.Listen("unix", socketPath)
 	if err != nil {
 		glog.Errorf("Failed to listen to socket while starting "+
-			"device pluginregistery", err)
+			"device plugin registery", err)
 		return err
 	}
 

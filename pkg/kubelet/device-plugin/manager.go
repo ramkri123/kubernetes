@@ -42,13 +42,21 @@ type Manager struct {
 	callback MonitorCallback
 }
 
-func NewManager(devices, available []*pluginapi.Device, f MonitorCallback) (*Manager, error) {
+// socketPath is present for testing purposes in production this is pluginapi.KubeletSocket
+func NewManager(socketPath string, devices, available []*pluginapi.Device,
+	f MonitorCallback) (*Manager, error) {
+
+	registry, err := newRegistery(socketPath)
+	if err != nil {
+		return nil, err
+	}
+
 	m := &Manager{
 		devices:   make(map[string][]*pluginapi.Device),
 		available: make(map[string][]*pluginapi.Device),
 		vendors:   make(map[string][]*pluginapi.Device),
 
-		registry: newServer(),
+		registry: registry,
 		callback: f,
 	}
 

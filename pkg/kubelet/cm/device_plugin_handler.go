@@ -47,7 +47,7 @@ type DevicePluginHandler struct {
 }
 
 func NewDevicePluginHandler(devCapacity, devAvailable []v1.Device, pods []*v1.Pod,
-	k KillPodFunc) (*DevicePluginHandler, error) {
+	k KillPodFunc, socketPath string) (*DevicePluginHandler, error) {
 
 	hdlr := &DevicePluginHandler{
 		pod2Dev:  make(map[kubetypes.UID]map[string][]*pluginapi.Device),
@@ -61,7 +61,8 @@ func NewDevicePluginHandler(devCapacity, devAvailable []v1.Device, pods []*v1.Po
 	// This adds the used pods to the hdlr's internal state
 	unused := hdlr.reconcile(pods, devices, available)
 
-	mgr, err := deviceplugin.NewManager(devices, available, hdlr.monitorCallback)
+	mgr, err := deviceplugin.NewManager(socketPath, devices, available,
+		hdlr.monitorCallback)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize device plugin with error: %+v", err)
 	}

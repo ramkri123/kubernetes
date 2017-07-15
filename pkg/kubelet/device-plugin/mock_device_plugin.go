@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -31,12 +32,11 @@ import (
 
 const (
 	deviceSock = "device.sock"
-	serverSock = pluginapi.DevicePluginPath + deviceSock
 )
 
-var ()
-
 type MockDevicePlugin struct {
+	kubeletSocket string
+
 	ndevs  int
 	vendor string
 	kind   string
@@ -117,17 +117,24 @@ func (m *MockDevicePlugin) Stop() {
 	m.server.Stop()
 }
 
-func StartMockDevicePluginServer(vendor, kind string, ndevs int,
+func StartMockDevicePluginServer(kubeletSocket, vendor, kind string, ndevs int,
 	waitToKill time.Duration) (*MockDevicePlugin, error) {
 
-	os.Remove(serverSock)
+	dir, _ := filepath.Split(kubeletSocket)
+	socketPath := dir + deviceSock
 
-	sock, err := net.Listen("unix", serverSock)
+	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	sock, err := net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, err
 	}
 
 	plugin := &MockDevicePlugin{
+		kubeletSocket: kubeletSocket,
+
 		vendor:     vendor,
 		kind:       kind,
 		ndevs:      ndevs,
@@ -144,8 +151,8 @@ func StartMockDevicePluginServer(vendor, kind string, ndevs int,
 	return plugin, nil
 }
 
-func DialRegistery(d *MockDevicePlugin) error {
-	c, err := grpc.Dial(pluginapi.KubeletSocket, grpc.WithInsecure(),
+func (d *MockDevicePlugin) DialRegistery() error {
+	c, err := grpc.Dial(d.kubeletSocket, grpc.WithInsecure(),
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 			return net.DialTimeout("unix", addr, timeout)
 		}),

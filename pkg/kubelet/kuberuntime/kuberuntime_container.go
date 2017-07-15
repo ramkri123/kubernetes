@@ -449,9 +449,11 @@ func (m *kubeGenericRuntimeManager) getPodContainerStatuses(uid kubetypes.UID, n
 			}
 		}
 
-		hdlr := m.containerManager.GetDevicePluginHandler()
-		if hdlr != nil {
-			cStatus.Devices = hdlr.DevicesForCtr(uid, cStatus.Name)
+		if m.containerManager != nil {
+			hdlr := m.containerManager.GetDevicePluginHandler()
+			if hdlr != nil {
+				cStatus.Devices = hdlr.DevicesForCtr(uid, cStatus.Name)
+			}
 		}
 		statuses[i] = cStatus
 	}

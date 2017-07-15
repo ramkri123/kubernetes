@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
 	"time"
 
 	"github.com/golang/glog"
@@ -28,7 +29,7 @@ func deallocate(e *Endpoint, devs []*pluginapi.Device) (*pluginapi.Error, error)
 func (s *Registery) InitiateCommunication(r *pluginapi.RegisterRequest,
 	response *pluginapi.RegisterResponse) {
 
-	connection, client, err := dial(r.Unixsocket)
+	connection, client, err := dial(s.socketdir, r.Unixsocket)
 	if err != nil {
 		response.Error = NewError(err.Error())
 		return
@@ -172,9 +173,12 @@ func initProtocol(client pluginapi.DeviceManagerClient) error {
 	return nil
 }
 
-func dial(unixSocket string) (*grpc.ClientConn, pluginapi.DeviceManagerClient, error) {
+func dial(socketdir, unixSocket string) (*grpc.ClientConn,
+	pluginapi.DeviceManagerClient, error) {
 
-	c, err := grpc.Dial(pluginapi.DevicePluginPath+unixSocket, grpc.WithInsecure(),
+	socketPath := filepath.Join(socketdir, unixSocket)
+
+	c, err := grpc.Dial(socketPath, grpc.WithInsecure(),
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 			return net.DialTimeout("unix", addr, timeout)
 		}))
