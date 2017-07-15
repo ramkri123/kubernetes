@@ -15,7 +15,6 @@ go_library(
         "manager.go",
         "mock_device_plugin.go",
         "registery.go",
-        "shim.go",
         "utils.go",
     ],
     tags = ["automanaged"],
