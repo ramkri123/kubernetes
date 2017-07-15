@@ -44,6 +44,7 @@ func newRegistery(socketPath string) (*Registery, error) {
 
 func (m *Manager) startRegistery() error {
 	socketPath := filepath.Join(m.registry.socketdir, m.registry.socketname)
+	os.MkdirAll(m.registry.socketdir, 0755)
 
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		glog.Errorf("Failed to listen to socket while starting "+
