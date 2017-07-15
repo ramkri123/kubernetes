@@ -64,14 +64,14 @@ func (m *Manager) startRegistery() error {
 
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		glog.Errorf("Failed to listen to socket while starting "+
-			"device plugin registery", err)
+			"device plugin registery: %+v", err)
 		return err
 	}
 
 	s, err := net.Listen("unix", socketPath)
 	if err != nil {
 		glog.Errorf("Failed to listen to socket while starting "+
-			"device plugin registery", err)
+			"device plugin registery: %+v", err)
 		return err
 	}
 

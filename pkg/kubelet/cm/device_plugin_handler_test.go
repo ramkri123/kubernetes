@@ -67,15 +67,13 @@ func TestHandlerRM(t *testing.T) {
 			Name: "test-pod",
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name: "pause",
-					Resources: v1.ResourceRequirements{
-						Requests: v1.ResourceList{
-							opaqueResName: resource.MustParse("1"),
-						},
+			Containers: []v1.Container{{
+				Name: "pause",
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						opaqueResName: resource.MustParse("1"),
 					},
-				},
+				}},
 			},
 		},
 	}
@@ -117,7 +115,7 @@ func TestHandlerRebuildState(t *testing.T) {
 	devices[1].Health = v1.DeviceUnhealthy
 
 	available := []v1.Device{devices[3], devices[0], devices[4]}
-	pods := []*v1.Pod{&v1.Pod{
+	pods := []*v1.Pod{{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-pod",
 		},

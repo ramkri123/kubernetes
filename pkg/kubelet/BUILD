@@ -53,6 +53,7 @@ go_library(
         "//pkg/fieldpath:go_default_library",
         "//pkg/kubelet/apis:go_default_library",
         "//pkg/kubelet/apis/cri:go_default_library",
+        "//pkg/kubelet/apis/device-plugin/v1alpha1:go_default_library",
         "//pkg/kubelet/cadvisor:go_default_library",
         "//pkg/kubelet/certificate:go_default_library",
         "//pkg/kubelet/cm:go_default_library",

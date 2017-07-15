@@ -80,7 +80,7 @@ func (m *MockDevicePlugin) Monitor(e *pluginapi.Empty,
 		err := deviceStream.Send(h)
 
 		if err != nil {
-			fmt.Println("Error while monitoring: %+v", err)
+			fmt.Printf("Error while monitoring: %+v", err)
 		}
 	}
 }
