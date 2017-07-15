@@ -776,12 +776,13 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 
 	// Get node status
 	c := klet.GetKubeClient()
+
+	var devCapacity, devAvailable []v1.Device
 	node, err := c.Core().Nodes().Get(string(klet.nodeName), metav1.GetOptions{})
-	if err != nil && !strings.Contains(err.Error(), "not found") {
-		return nil, err
+	if err != nil {
+		devCapacity = node.Status.DevCapacity
+		devAvailable = node.Status.DevAvailable
 	}
-	devCapacity := node.Status.DevCapacity
-	devAvailable := node.Status.DevAvailable
 
 	k := killPodNow(klet.podWorkers, kubeDeps.Recorder)
 	devicePluginHandler, err := cm.NewDevicePluginHandler(devCapacity,
