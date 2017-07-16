@@ -30,14 +30,41 @@ import (
   	"github.com/golang/glog"
 )
 
+func IsSolarFlareNICPresent() bool {
+
+	glog.Errorf("IsSolarFlareNICPresent\n")
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+
+	SolarFlareNICVendorID := "1924:"
+
+	cmdName := "lspci"
+	cmd := exec.Command(cmdName, "-d", SolarFlareNICVendorID)
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("CMD--" + cmdName + ": " + fmt.Sprint(err) + ": " + stderr.String())
+	} else {
+		//fmt.Println("CMD--" + cmdName + ": " + out.String())
+
+		if (strings.Contains(out.String(), "Solarflare Communications") == true) { 
+			return true
+		}
+	}
+
+	return false
+}
+
 func Init() {
+
+	glog.Errorf("Init\n");
 
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 
 	onloadver := "201606-u1.3"
-
-	glog.Errorf("Init\n");
 
 	cmdName := "yum"
 	cmdArgs := []string{}
@@ -231,7 +258,12 @@ func AreAllOnloadDevicesAvailable() bool {
 }
 
 func TestManagerSolarFlareNIC(t *testing.T) {
+
 	glog.Errorf("TestManagerSolarFlareNIC\n")
 
-	Init()
+	if IsSolarFlareNICPresent() == true {
+		Init()
+	} else {
+		glog.Errorf("Init aborted: no SolarFlare NICs are present\n")
+	}
 }
